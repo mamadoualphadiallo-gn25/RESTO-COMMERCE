@@ -8,6 +8,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
     steps:
       - uses: actions/checkout@v4
 
@@ -16,17 +19,19 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      # GitHub runners may contain a stale/broken "latest" cmdline-tools
-      # directory. Remove it so setup-android installs a clean SDK manager.
-      - name: Remove stale Android command-line tools
+      # Install only real SDK packages needed by this project.
+      # The setup-android action also requests the obsolete "tools"
+      # package, which current Google repositories no longer publish.
+      - name: Install Android SDK packages
         shell: bash
         run: |
-          if [ -n "${ANDROID_HOME:-}" ] && [ -d "$ANDROID_HOME/cmdline-tools/latest" ]; then
-            sudo rm -rf "$ANDROID_HOME/cmdline-tools/latest"
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          if [ -z "$SDKMANAGER" ]; then
+            echo "sdkmanager not found under $ANDROID_HOME/cmdline-tools"
+            exit 1
           fi
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+          yes | "$SDKMANAGER" --licenses >/dev/null
+          "$SDKMANAGER" --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
