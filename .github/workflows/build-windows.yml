@@ -26,19 +26,24 @@ jobs:
       - name: Verify Python syntax
         run: python -m compileall -q backend windows/desktop_app.py
 
-      # Use onedir instead of onefile. This avoids the self-extracting PKG
-      # archive that Windows reported as missing/corrupt on the user's PC.
       - name: Build Windows application
         shell: pwsh
         run: |
           python -m PyInstaller --noconfirm --clean --onedir --windowed --name RESTO-COMMERCE windows/desktop_app.py
-          if (!(Test-Path "dist/RESTO-COMMERCE/RESTO-COMMERCE.exe")) {
+          $app = "dist/RESTO-COMMERCE"
+          $exe = Join-Path $app "RESTO-COMMERCE.exe"
+          if (!(Test-Path $exe -PathType Leaf)) {
+            Get-ChildItem "dist" -Recurse | Format-Table FullName, Length
             throw "PyInstaller did not create the application executable."
           }
-          if (!(Test-Path "dist/RESTO-COMMERCE/RESTO-COMMERCE\_internal")) {
-            throw "PyInstaller support files are missing."
+          $files = Get-ChildItem $app -Recurse -File
+          if ($files.Count -lt 2) {
+            throw "The application bundle is incomplete: support files were not collected."
           }
-          Compress-Archive -Path "dist/RESTO-COMMERCE/*" -DestinationPath "dist/RESTO-COMMERCE-Windows.zip" -Force
+          Compress-Archive -Path "$app/*" -DestinationPath "dist/RESTO-COMMERCE-Windows.zip" -Force
+          if (!(Test-Path "dist/RESTO-COMMERCE-Windows.zip" -PathType Leaf)) {
+            throw "The Windows ZIP archive was not created."
+          }
 
       - name: Upload Windows application bundle
         uses: actions/upload-artifact@v4
